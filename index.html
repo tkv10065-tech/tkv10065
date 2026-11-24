@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KOSPI 스톱워치</title>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      color-scheme: dark;
+      --red: #ff645d;
+      --line: #3f282e;
+      --mono: "IBM Plex Mono", Consolas, monospace;
+    }
+    body {
+      isolation: isolate;
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: clamp(14px, 4vw, 40px);
+      background: radial-gradient(ellipse at top, #34181d, #100b10 72%);
+      color: #f8efef;
+      font-family: system-ui, sans-serif;
+    }
+    .market-backdrop { position: fixed; inset: 0; z-index: -1; background: linear-gradient(#080c1470, #080c14a0), url('./사진자료.webp') center / cover no-repeat; }
+    .quote { position: relative; z-index: 1; }
+    .target { color: #dcbfc5; font-size: .75rem; margin-top: 8px; }
+    main {
+      width: min(100%, 950px);
+      border: 1px solid #633c43;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #171014;
+      box-shadow: 0 22px 80px #0009;
+    }
+    .board-header, .ticker {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px clamp(14px, 4vw, 28px);
+      background: #21151a;
+    }
+    .board-header { border-bottom: 1px solid var(--line); flex-wrap: wrap; background: #090e17; }
+    .header-quotes { display: flex; flex: 1; flex-wrap: wrap; gap: 6px 16px; font: 700 .72rem var(--mono); }
+    .header-quotes span { color: #639bff; transition: color .3s; }
+    .header-quotes span.up { color: #ff645d; }
+    .board-header strong { font-size: .9rem; }
+    .simulation { color: #dcbfc5; font-size: .75rem; }
+    .market {
+      position: relative;
+      isolation: isolate;
+      min-height: 290px;
+      padding: clamp(16px, 4vw, 32px);
+      background: linear-gradient(90deg, #10101866, #10101818), url('./사진자료.webp') center / cover no-repeat;
+    }
+    #chart { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+    .quote { display: inline-grid; gap: 4px; background: #1b1015d9; padding: 4px 10px 6px 0; border-radius: 8px; }
+    .quote strong { font: 700 1rem var(--mono); letter-spacing: .12em; }
+    #index-value { color: var(--red); font: 700 clamp(1.5rem, 6vw, 3.25rem) var(--mono); }
+    #index-change { color: #ff938c; font: 600 clamp(.7rem, 3.2vw, .95rem) var(--mono); }
+    .ticker {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      column-gap: clamp(16px, 5vw, 40px);
+      border-block: 1px solid var(--line);
+      color: #dec8cb;
+      font-size: .76rem;
+    }
+    .ticker b { margin-left: 4px; color: #ff938c; font-family: var(--mono); }
+    .stopwatch { padding: clamp(16px, 4vw, 28px); }
+    h1 { margin: 0; font-size: 1rem; }
+    #time {
+      margin: 16px 0 22px;
+      text-align: center;
+      font: 700 clamp(1.65rem, 8vw, 3.6rem)/1.1 var(--mono);
+      overflow-wrap: anywhere;
+    }
+    #fraction { color: var(--red); }
+    .controls { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 8px; max-width: 460px; margin-inline: auto; }
+    button {
+      cursor: pointer;
+      padding: 12px 4px;
+      border: 1px solid #69464e;
+      border-radius: 10px;
+      background: #302028;
+      color: inherit;
+      font: inherit;
+      font-weight: 700;
+    }
+    button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    button:disabled { opacity: .48; cursor: default; }
+    #toggle { background: var(--red); color: #230c0d; border-color: transparent; }
+    #records { margin-top: 24px; max-height: 240px; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    caption { text-align: left; font-weight: 700; margin-bottom: 8px; }
+    th, td { padding: 8px 2px; text-align: right; border-bottom: 1px solid var(--line); }
+    th:first-child { text-align: left; }
+    thead th { color: #dcbfc5; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <div class="market-backdrop" aria-hidden="true"></div>
+  <main>
+    <header class="board-header">
+      <strong>증시 전광판</strong>
+      <div class="header-quotes" aria-label="가상 종목 시세">
+        <span>삼성전자 ▼ 0.72%</span><span>SK하이닉스 ▼ 1.24%</span>
+        <span>현대차 ▼ 0.53%</span><span>NAVER ▼ 0.86%</span>
+        <span>LG전자 ▼ 0.35%</span><span>KB금융 ▼ 0.64%</span>
+      </div>
+      <span class="simulation">가상 시세</span>
+    </header>
+    <section class="market" aria-label="가상 KOSPI 지수">
+      <canvas id="chart" aria-hidden="true"></canvas>
+      <div class="quote">
+        <strong>KOSPI</strong>
+        <span id="index-value">3,000.00</span>
+        <span id="index-change">0.00 (0.00%)</span>
+        <span class="target">시작 3,000 · 20초 10,000 · 60초 50,000</span>
+      </div>
+    </section>
+    <div class="ticker" aria-label="가상 KOSPI 시세 요약">
+      <span>시가 <b>3,000.00</b></span>
+      <span>고가 <b id="market-high">3,000.00</b></span>
+      <span>저가 <b>3,000.00</b></span>
+    </div>
+    <section class="stopwatch" aria-labelledby="stopwatch-title">
+    <h1 id="stopwatch-title">스톱워치</h1>
+    <p id="time" role="timer"><span id="whole">00:00:00</span><span id="fraction">.00</span></p>
+    <div class="controls">
+      <button id="toggle" type="button">시작</button>
+      <button id="lap" type="button" disabled>랩</button>
+      <button id="reset" type="button" disabled>초기화</button>
+    </div>
+    <div id="records" hidden>
+      <table>
+        <caption>랩 기록</caption>
+        <thead><tr><th scope="col">랩</th><th scope="col">구간 시간</th><th scope="col">누적 시간</th></tr></thead>
+        <tbody id="laps"></tbody>
+      </table>
+    </div>
+    </section>
+  </main>
+  <script>
+    const whole = document.getElementById('whole');
+    const fraction = document.getElementById('fraction');
+    const toggle = document.getElementById('toggle');
+    const lap = document.getElementById('lap');
+    const reset = document.getElementById('reset');
+    const records = document.getElementById('records');
+    const laps = document.getElementById('laps');
+    const chart = document.getElementById('chart');
+    const pen = chart.getContext('2d');
+    const indexValue = document.getElementById('index-value');
+    const indexChange = document.getElementById('index-change');
+    const marketHigh = document.getElementById('market-high');
+    const openingIndex = 3000;
+    const targetIndex = 50000;
+    const rallyDuration = 60;
+    let highestIndex = openingIndex;
+    const quoteFormat = new Intl.NumberFormat('ko-KR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    let displayedTick = -1;
+
+    let startedAt = null;
+    let elapsed = 0;
+    let frame;
+    let previousLap = 0;
+    let lapCount = 0;
+
+    const pad = value => String(value).padStart(2, '0');
+    const currentElapsed = () => elapsed + (startedAt === null ? 0 : performance.now() - startedAt);
+
+    function format(ms) {
+      const centiseconds = Math.floor(ms / 10);
+      const seconds = Math.floor(centiseconds / 100);
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor(seconds / 60) % 60;
+      return [pad(hours), pad(minutes), pad(seconds % 60)].join(':') + '.' + pad(centiseconds % 100);
+    }
+
+    function gainAt(seconds) {
+      const time = Math.min(rallyDuration, Math.max(0, seconds));
+      const firstLeg = time <= 20;
+      const progress = firstLeg ? time / 20 : (time - 20) / 40;
+      // Oscillation vanishes at every milestone and stays within each leg.
+      const trend = progress + .08 * Math.sin(progress * Math.PI * 12) * Math.sin(progress * Math.PI);
+      return firstLeg ? 7000 * trend : 7000 + (targetIndex - 10000) * trend;
+    }
+
+    function drawBull(x, y) {
+      pen.save();
+      pen.translate(x, y);
+      pen.scale((160 / 3) / 64, (160 / 3) / 64);
+      pen.lineJoin = 'miter';
+      pen.lineWidth = 1.4;
+      pen.strokeStyle = '#ffb56d';
+      pen.fillStyle = '#6e2817';
+      const shape = path => { const outline = new Path2D(path); pen.fill(outline); pen.stroke(outline); };
+      // Charging silhouette: angular shoulders, lowered head, splayed hooves.
+      shape('M -25 -4 L -21 -12 L -8 -14 L 0 -20 L 9 -18 L 15 -10 L 23 -9 L 29 -2 L 27 5 L 18 6 L 12 2 L 7 7 L -12 7 L -21 4 Z');
+      shape('M -19 3 L -21 15 L -27 21 L -18 21 L -12 7 Z');
+      shape('M -7 6 L -3 17 L 3 20 L 6 16 L 1 13 L 1 5 Z');
+      shape('M 8 4 L 13 14 L 22 18 L 26 15 L 18 10 L 16 1 Z');
+      pen.fillStyle = '#fff0c2';
+      shape('M 17 -9 L 17 -18 L 23 -25 L 22 -15 L 25 -10 Z');
+      shape('M 23 -6 L 29 -12 L 31 -21 L 34 -12 L 30 -3 Z');
+      pen.beginPath(); pen.moveTo(-23, -4); pen.lineTo(-29, -9); pen.lineTo(-31, -18);
+      pen.strokeStyle = '#d77a3c'; pen.lineWidth = 2; pen.stroke();
+      pen.beginPath(); pen.moveTo(-14, -9); pen.lineTo(-4, -11); pen.lineTo(5, -15);
+      pen.moveTo(4, -8); pen.lineTo(9, -2); pen.stroke();
+      pen.fillStyle = '#ff3428'; pen.fillRect(23, -3, 3, 2);
+      pen.restore();
+    }
+
+    function drawChart(seconds) {
+      const { width, height } = chart.getBoundingClientRect();
+      if (!width || !height) return;
+      const scale = window.devicePixelRatio || 1;
+      const pixelWidth = Math.round(width * scale);
+      const pixelHeight = Math.round(height * scale);
+      if (chart.width !== pixelWidth || chart.height !== pixelHeight) {
+        chart.width = pixelWidth;
+        chart.height = pixelHeight;
+      }
+      pen.setTransform(scale, 0, 0, scale, 0, 0);
+      pen.clearRect(0, 0, width, height);
+
+      seconds = Math.min(seconds, rallyDuration);
+      const duration = rallyDuration;
+      const ceiling = (targetIndex - openingIndex) * 1.12;
+      const bullMargin = 34;
+      const baseline = height - bullMargin;
+      const plotHeight = Math.max(0, height - bullMargin * 2);
+      const plotWidth = Math.max(0, width - bullMargin * 2);
+      const right = bullMargin + plotWidth * seconds / duration;
+      const endY = baseline - gainAt(seconds) / ceiling * plotHeight;
+      pen.beginPath();
+      pen.moveTo(bullMargin, baseline);
+      for (let step = 1; step <= 600; step++) {
+        const progress = step / 600;
+        const y = baseline - gainAt(seconds * progress) / ceiling * plotHeight;
+        pen.lineTo(bullMargin + (right - bullMargin) * progress, y);
+      }
+      pen.strokeStyle = '#ff645d';
+      pen.lineWidth = 2.5;
+      pen.stroke();
+      pen.lineTo(right, height);
+      pen.lineTo(bullMargin, height);
+      pen.closePath();
+      const fill = pen.createLinearGradient(0, 0, 0, height);
+      fill.addColorStop(0, '#ff645d66');
+      fill.addColorStop(1, '#ff645d10');
+      pen.fillStyle = fill;
+      pen.fill();
+      drawBull(right, endY);
+    }
+
+    function renderMarket(ms) {
+      const tick = Math.floor(ms / 50);
+      if (tick === displayedTick) return;
+      displayedTick = tick;
+      const seconds = tick / 20;
+      const gain = gainAt(seconds);
+      const value = quoteFormat.format(openingIndex + gain);
+      indexValue.textContent = value;
+      highestIndex = Math.max(highestIndex, openingIndex + gain);
+      marketHigh.textContent = quoteFormat.format(highestIndex);
+      indexChange.textContent = tick === 0
+        ? '0.00 (0.00%)'
+        : '▲ ' + quoteFormat.format(gain) + ' (+' + quoteFormat.format(gain / openingIndex * 100) + '%)';
+      document.querySelectorAll('.header-quotes span').forEach((cell, i) => {
+        const up = openingIndex + gain >= 3000 + (i + 1) * 7000 / 6;
+        cell.classList.toggle('up', up);
+        const name = ['삼성전자', 'SK하이닉스', '현대차', 'NAVER', 'LG전자', 'KB금융'][i];
+        cell.textContent = name + (up ? ' ▲ +' : ' ▼ −') + (0.35 + i * .19 + Math.min(seconds, 60) * .05).toFixed(2) + '%';
+      });
+      drawChart(seconds);
+    }
+
+    function render() {
+      const ms = currentElapsed();
+      const [time, decimals] = format(ms).split('.');
+      if (whole.textContent !== time) whole.textContent = time;
+      if (fraction.textContent !== '.' + decimals) fraction.textContent = '.' + decimals;
+      renderMarket(ms);
+      if (startedAt !== null) frame = requestAnimationFrame(render);
+    }
+
+    toggle.addEventListener('click', () => {
+      if (startedAt === null) {
+        startedAt = performance.now();
+        toggle.textContent = '일시정지';
+        lap.disabled = false;
+        reset.disabled = false;
+      } else {
+        elapsed = currentElapsed();
+        startedAt = null;
+        cancelAnimationFrame(frame);
+        toggle.textContent = '계속';
+        lap.disabled = true;
+      }
+      render();
+    });
+
+    lap.addEventListener('click', () => {
+      const total = currentElapsed();
+      const row = laps.insertRow(0);
+      const number = document.createElement('th');
+      number.scope = 'row';
+      number.textContent = ++lapCount;
+      row.append(number);
+      row.insertCell().textContent = format(total - previousLap);
+      row.insertCell().textContent = format(total);
+      previousLap = total;
+      records.hidden = false;
+    });
+
+    reset.addEventListener('click', () => {
+      startedAt = null;
+      cancelAnimationFrame(frame);
+      elapsed = 0;
+      highestIndex = openingIndex;
+      displayedTick = -1;
+      previousLap = 0;
+      lapCount = 0;
+      laps.replaceChildren();
+      records.hidden = true;
+      toggle.textContent = '시작';
+      toggle.focus();
+      lap.disabled = true;
+      reset.disabled = true;
+      render();
+    });
+
+    new ResizeObserver(() => drawChart(Math.max(0, displayedTick) / 20)).observe(chart);
+    render();
+  </script>
+</body>
+</html>
